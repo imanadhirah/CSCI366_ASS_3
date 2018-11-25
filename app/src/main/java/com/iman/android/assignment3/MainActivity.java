@@ -1,5 +1,6 @@
 package com.iman.android.assignment3;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -7,13 +8,13 @@ import android.net.Uri;
 import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.File;
+import java.io.FileInputStream;;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,8 +25,7 @@ public class MainActivity extends AppCompatActivity {
     boolean imageLoaded = false;
     ImageView imgView, comImgView;
     TextView tv1, tv2;
-    Bitmap inputBM, outputBM, tempBM;
-    BufferedImage ycb;
+    Bitmap inputBM, outputBM;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,312 +69,311 @@ public class MainActivity extends AppCompatActivity {
                 inputBM = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
                 imgView.setImageBitmap(inputBM);
                 imageLoaded = true;
-                compress(inputBM, "file1.cmp");
+                compressIman(inputBM, "file1.cmp");
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
-//
-//    public void playOriClick(View v) {
-//        //code to check if this checkbox is checked!
-//        CheckBox checkBox = (CheckBox) findViewById(R.id.compress);
-//        if(checkBox.isChecked()){
-//            checkBox.toggle();
-//        }
-//    }
-//
-//    public void playDeNoiseClick(View v) {
-//        //code to check if this checkbox is checked!
-//        CheckBox checkBox = (CheckBox) findViewById(R.id.decompress);
-//        if(checkBox.isChecked()){
-//            checkBox.toggle();
-//        }
-//    }
 
     private void compressIman(Bitmap bm,String filename){
-        byte[][] Y = new byte[bm.getWidth()][bm.getHeight()];
-        byte[][] Cr = new byte[(bm.getWidth()/2)][(bm.getHeight()/2)];
-        byte[][] Cb = new byte[(bm.getWidth()/2)][(bm.getHeight()/2)];
 
-        convertYcrcbSubSample(Y,Cr,Cb,bm);
+        int width = bm.getWidth();
+        int height = bm.getHeight();
+        int half_width = (int) Math.ceil(bm.getWidth()/2.0);
+        int half_height = (int) Math.ceil(bm.getHeight()/2.0);
 
-        WriteToFileByte(Y,Cr,Cb,filename); // .chs
+        Log.d("debug", "compressIman: "+ width +" " + height + " " + half_width + " " + half_height);
+        ycrcb_data fulldata = new ycrcb_data(width, height);
+        ycrcb_data Halfdata = new ycrcb_data(width, height,
+                                            half_width, half_height,
+                                            half_width, half_height);
+        convertYcrcbFullSample(fulldata, bm);
+        convertYcrcbSubSample(fulldata,Halfdata,bm);
+
+        WriteToFileByte(Halfdata,filename,this); // .chs
+
+
     }
 
-    private void decompress(String filename)
+    public void decompressIman(View view)
     {
-        byte[][] Y, Cr, Cb;
 
-        ReadToFileByte(Y,Cr,Cb,filename);
+        String filename = "file1.cmp";
+        ycrcb_data d = ReadToFileByte(filename, this);
 
+        outputBM = Bitmap.createBitmap(inputBM.getWidth(), inputBM.getHeight(),inputBM.getConfig());
 
-
-        Bitmap bm = new Bitmap();
-
-
-         convertRGB( bm,Y,  Cr, Cb);
+         convertRGB( outputBM,d);
 
          //View bm
+        comImgView.setImageBitmap(outputBM);
 
     }
 
-    //This compress method process pixels in 3x3 block
-    //It uses the concept of Color Filter Array as in the camera sensor
-    //Each pixel only keep 1 color value (either R or G or B)
-    //The other 2 colors obtain from interpolation of the neigboring pixels
-    private void compress(Bitmap bm, String fileName) {
-        int width = bm.getWidth(); //must store width
-        int height = bm.getHeight(); //must store height
-        int horiz = perfect3 (width);
-        int vert = perfect3(height);
-
-        byte[] compressedPixel = new byte[9];
-        byte[] header = new byte[4];
-        int index;
-        FileOutputStream compressedFile;  //convert height & width in to byte
-        try {
-            compressedFile = openFileOutput(fileName, MODE_PRIVATE);
-            try {   //convert width (32-bit integer) to 4-byte
-                header[0] = (byte) (width & 0xFF);
-                header[1] = (byte) (width >> 8 & 0xFF); //right shift by 8 bit
-                header[2] = (byte) (width >> 16 & 0xFF);
-                header[3] = (byte) (width >> 24 & 0xFF);
-                compressedFile.write(header);
-                header[0] = (byte) (height & 0xFF);
-                header[1] = (byte) (height >> 8 & 0xFF);
-                header[2] = (byte) (height >> 16 & 0xFF);
-                header[3] = (byte) (height >> 24 & 0xFF);
-
-                compressedFile.write(header);
-
-                //store actual pixel
-                //create a temporary Bitmap that has the width & height in multiple of 3
-                tempBM = Bitmap.createScaledBitmap(inputBM, horiz, vert, false);
-
-                for (int x = 0; x < horiz; x+=3) {
-                    for (int y = 0; y < vert; y+=3) {
-                        for (int m=0; m<3; m++) {
-                            for (int n=0; n<3; n++) {
-                                index = m*3 + n;
-                                //for pixel 0, 4, 8, keep only the red channel
-                                if ((index == 0) || (index == 4) || (index == 8))
-                                    compressedPixel[index] = (byte) Color.red(tempBM.getPixel(x+m,y+n));
-                                    //for pixel 2, 6, keep only the blue channel
-                                else if ((index == 2) || (index == 6))
-                                    compressedPixel[index] = (byte) Color.blue(tempBM.getPixel(x+m,y+n));
-                                    //for pixel 1, 3, 5, 7, keep only the green channel
-                                else
-                                    compressedPixel[index] = (byte) Color.green(tempBM.getPixel(x+m,y+n));
-
-                            }
-                        }
-
-                        compressedFile.write(compressedPixel);
-
-                    }
-                }
-                compressedFile.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    //Convert width or height to multiple of 3
-    // (do divide perfectly to 3x3) enlarge image by 1 or 2 pixel
-    private int perfect3(int num) {
-        if (num % 3 == 0)
-            return num;
-        else if (num % 3 == 1)
-            return num + 2;
-        else
-            return num + 1;
-    }
-
-    public void convertRGB(Bitmap bm,byte[][] Y, byte[][] Cr, byte[][] Cb)
+    public void convertRGB(Bitmap bm,ycrcb_data d)
     {
-        //R = Y + 1.402 * Cr
-        //G = Y - 0.3441*Cb - 0.714136*Cr
-        //B = Y + 1.772*Cb
+        Log.e("Debug", " start convertRGB: ");
 
-        for (int i=0; i<bm.getHeight();i++)
+        for (int i=0; i<bm.getWidth();i++)
         {
+            int r=0,g=0,b=0;
 
-            for (int j=0;j<bm.getWidth();j++)
+            for (int j=0;j<bm.getHeight();j++)
             {
-                byte r,g,b;
+                float y = d.Y[i][j];
+                float cr = d.Cr[i][j];
+                float cb = d.Cb[i][j];
 
-                r = (byte) (Y[i][j] + 1.402 * Cr[i][j]);
-                g = (byte) (Y[i][j] - 0.3441*Cb[i][j] - 0.714136*Cr[i][j]);
-                b = (byte) (Y[i][j] + 1.772*Cb[i][j]);
 
-                bm.setPixel(i,j,Color.rgb(r,g,b));
+                if(y < 0){
+                    y += 256;
+                }
+
+
+                r = (int)(y + 1.402 * cr) ;
+                g = (int)(y - (0.3441 * cb ) - (0.714136 * cr) ) ;
+                b = (int)(y + 1.772  * cb);
+
+                bm.setPixel(i,j,Color.argb(255,r,g,b));
+
             }
 
         }
-    }
 
-    public void convertYcrcbSubSample(byte[][] Y, byte[][] Cr, byte[][] Cb,Bitmap bm){
-        int ind = 0;
+        Log.e("Debug", "Done: ");
+
+
+    }
+    public void convertYcrcbSubSample(ycrcb_data f, ycrcb_data h,Bitmap bm){
         int iS = 0;
         int jS = 0;
         boolean ib = false;
         boolean jb = false;
-        for (int i=0; i<bm.getHeight();i++)
+
+        for (int i=0; i<bm.getWidth();i++)
         {
+            System.arraycopy(f.Y[i],0,h.Y[i],0,f.Y[i].length);
+
             if(i%2 == 0)
                 ib = true;
             else
                 ib = false;
-            for (int j=0;j<bm.getWidth();j++)
+            for (int j=0;j<bm.getHeight();j++)
             {
                 if(j%2 == 0)
                     jb = true;
                 else
                     jb = false;
 
-                int p = bm.getPixel(i,j);
-                byte r = (byte) Color.red(p);
-                byte g = (byte) Color.green(p);
-                byte b = (byte)Color.blue(p);
-
-                Y[i][j] = (byte) ( 0.299 * r + 0.587* g + 0.114* b);
                 if(ib && jb)
                 {
-                    Cr[iS][jS] = (byte)( (-0.169) * r + (-0.331)* g + 0.500 * b);
-                    Cb[iS][jS] = (byte) ( 0.500 * r + (-0.419) * g +(-0.081) * b);
+                    double temp=0;
+                    double c = 1;
+
+                    temp = f.Cb[i][j];
+                    if(i+1 < f.Cb.length) {
+                        temp += f.Cb[i + 1][j];
+                        c++;
+                    }
+
+                    if(j+1 < f.Cb[0].length) {
+                        temp += f.Cb[i][j + 1];
+                        c++;
+                    }
+
+                    if(i+1 < f.Cb.length && j+1 < f.Cb[0].length) {
+                        temp += f.Cb[i + 1][j + 1];
+                        c++;
+                    }
+
+                    h.Cb[iS][jS] = (byte)(temp / c);
+
+                    c = 1;
+                    temp = f.Cr[i][j];
+                    if(i+1 < f.Cr.length) {
+                        temp += f.Cr[i + 1][j];
+                        c++;
+                    }
+
+                    if(j+1 < f.Cr[0].length) {
+                        temp += f.Cr[i][j + 1];
+                        c++;
+                    }
+
+                    if(i+1 < f.Cr.length && j+1 < f.Cr[0].length) {
+                        temp += f.Cr[i + 1][j + 1];
+                        c++;
+                    }
+
+                    h.Cr[iS][jS] = (byte)(temp / c);
+
                     jS++;
                 }
-
-                ind++;
             }
+            jS=0;
+
             if (ib)
                 iS++;
         }
 
     }
 
-    public void WriteToFileByte(byte[][] Y,byte[][]Cr,byte[][]Cb, String filename)
-    {
+    public void convertYcrcbFullSample(ycrcb_data f,Bitmap bm){
 
-    }
+        for (int i=0; i<bm.getWidth();i++)
+        {
 
-    public void ReadToFileByte(byte[][] Y,byte[][]Cr,byte[][]Cb, String filename)
-    {
+            for (int j=0;j<bm.getHeight();j++)
+            {
 
-    }
-    //The inverse of the compress method above
-    public void decompress (View view) {
+                int p = bm.getPixel(i,j);
+                float r = (float) Color.red(p);
+                float g = (float) Color.green(p);
+                float b = (float)Color.blue(p);
 
-        FileInputStream compressedFile;
-        int width = 0, height = 0;
-        byte[] header = new byte[4];
-        byte[] compressedPixel = new byte[9];
-        int pixel;
-        int red, green, blue, alpha = 255;
-        int index;
+                f.Y[i][j] = (byte) ( 0.299 * r + 0.587* g + 0.114* b);
+                f.Cb[i][j] = (byte)((-0.169 * r) + (-0.331)* g + 0.500 * b) ;
+                f.Cr[i][j] = (byte)(( 0.500 * r) + (-0.419) * g +(-0.081) * b);
 
-        float fileSize = 0;
-        try {
-            //by default 'file.cmp'  will save in application folder.
-            compressedFile = openFileInput("file1.cmp");
-            try {
-                fileSize = (float)compressedFile.available() / 1024;
-                compressedFile.read(header);
-
-                //convert back from byte to integer
-                //merge & convert the first 4-byte of the file to integer (width)
-                width = byteToInt(header[3]) << 24 | byteToInt(header[2]) << 16 | byteToInt(header[1]) << 8 | byteToInt(header[0]);
-                compressedFile.read(header);
-                //merge & convert the second 4-byte of the file to integer (height)
-                height = byteToInt(header[3]) << 24 | byteToInt(header[2]) << 16 | byteToInt(header[1]) << 8 | byteToInt(header[0]);
-
-                int horiz = perfect3(width);
-                int vert = perfect3(height);
-                //outputBM - the Bitmap that store the decompress pixels
-                outputBM = Bitmap.createBitmap(horiz, vert, tempBM.getConfig());
-
-                for (int x = 0; x < horiz; x+=3) {
-                    for (int y = 0; y < vert; y+=3) {
-                        compressedFile.read(compressedPixel);
-                        for (int m=0; m<3; m++) {
-                            for (int n=0; n<3; n++) {
-                                index = m*3 + n;
-                                //The interpolation calculation of each pixel in 3x3 region
-                                if (index == 0) {
-                                    red = byteToInt(compressedPixel[0]);
-                                    green = (byteToInt(compressedPixel[1]) + byteToInt(compressedPixel[3]))/2;
-                                    blue = (byteToInt(compressedPixel[2]) + byteToInt(compressedPixel[6]))/2;
-                                }
-                                else if (index == 1) {
-                                    red = (byteToInt(compressedPixel[0]) + byteToInt(compressedPixel[4])) / 2;
-                                    green = byteToInt(compressedPixel[1]);
-                                    blue = 2*byteToInt(compressedPixel[2])/3 + byteToInt(compressedPixel[6])/3;
-                                }
-                                else if (index == 2) {
-                                    red = byteToInt(compressedPixel[4]);
-                                    green = (byteToInt(compressedPixel[1]) + byteToInt(compressedPixel[5]))/2;
-                                    blue = byteToInt(compressedPixel[2]);
-                                }
-                                else if (index == 3) {
-                                    red = (byteToInt(compressedPixel[0]) + byteToInt(compressedPixel[4])) / 2;
-                                    green = byteToInt(compressedPixel[3]);
-                                    blue = 2*byteToInt(compressedPixel[6])/3 + byteToInt(compressedPixel[2])/3;
-                                }
-                                else if (index == 4) {
-                                    red = byteToInt(compressedPixel[4]);
-                                    green = (byteToInt(compressedPixel[1]) + byteToInt(compressedPixel[3]) + byteToInt(compressedPixel[5]) + byteToInt(compressedPixel[7]))/4;
-                                    blue = (byteToInt(compressedPixel[2]) + byteToInt(compressedPixel[6]))/2;
-                                }
-                                else if (index == 5) {
-                                    red = (byteToInt(compressedPixel[4]) + byteToInt(compressedPixel[8])) / 2;
-                                    green = byteToInt(compressedPixel[5]);
-                                    blue = 2*byteToInt(compressedPixel[2])/3 + byteToInt(compressedPixel[6])/3;
-                                }
-                                else if (index == 6) {
-                                    red = byteToInt(compressedPixel[4]);
-                                    green = (byteToInt(compressedPixel[3]) + byteToInt(compressedPixel[7]))/2;
-                                    blue = byteToInt(compressedPixel[6]);
-                                }
-                                else if (index == 7) {
-                                    red = (byteToInt(compressedPixel[4]) + byteToInt(compressedPixel[8])) / 2;
-                                    green = byteToInt(compressedPixel[7]);
-                                    blue = 2*byteToInt(compressedPixel[6])/3 + byteToInt(compressedPixel[2])/3;
-                                }
-                                else {
-                                    red = byteToInt(compressedPixel[8]);
-                                    green = (byteToInt(compressedPixel[5]) + byteToInt(compressedPixel[7]))/2;
-                                    blue = (byteToInt(compressedPixel[2]) + byteToInt(compressedPixel[6]))/2;
-                                }
-                                //set alpha to fix value.
-                                pixel = Color.argb(alpha,red,green,blue);
-                                outputBM.setPixel(x+m,y+n, pixel);
-                            }
-                        }
-
-                    }
-                }
-
-                compressedFile.close();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
-
-            comImgView.setImageBitmap(outputBM);
-            tv2.setText("file1.cmp" + " - " + String.format("%.02f",fileSize) + " kB");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         }
 
     }
 
-    //Convert byte (8-bit) data to integer
-    private int byteToInt(byte b) {
-        return b & 0xFF;
+    public void WriteToFileByte(ycrcb_data h, String filename, Context c)
+    {
+        try {
+            FileOutputStream outputStreamWriter = new FileOutputStream(c.openFileOutput(filename + ".chs", Context.MODE_PRIVATE).getFD());
+            String text = String.valueOf(h.Y.length)+" "+String.valueOf(h.Y[0].length)+"\n";
+            outputStreamWriter.write(text.getBytes());
+            text = String.valueOf(h.Cr.length)+" "+String.valueOf(h.Cr[0].length)+"\n";
+            outputStreamWriter.write(text.getBytes());
+            text = String.valueOf(h.Cb.length)+" "+String.valueOf(h.Cb[0].length)+"\n";
+            outputStreamWriter.write(text.getBytes());
+
+            for(int i=0; i < h.Y.length; i++){
+                outputStreamWriter.write(h.Y[i]);
+            }
+
+            for(int i=0; i < h.Cr.length; i++){
+                outputStreamWriter.write(h.Cr[i]);
+            }
+
+            for(int i=0; i < h.Cb.length; i++){
+                outputStreamWriter.write(h.Cb[i]);
+            }
+
+            outputStreamWriter.close();
+        }
+        catch (IOException e) {
+            Log.e("Exception", "File write failed: " + e.toString());
+        }
+
+        long length = new File(getFilesDir().getAbsolutePath() + "/"+filename+".chs").length();
+        float size = Float.valueOf(length) / 1000;
+
+        tv2.setText("filesize " + size +" Kb");
+        Log.e("Debug", "filesize " + size +" Kb");
     }
+
+    public ycrcb_data ReadToFileByte( String filename, Context c)
+    {
+
+        try{
+            FileInputStream in = new FileInputStream(c.openFileInput(filename + ".chs").getFD());
+            String line = null;
+            String[]line_t;
+
+            ycrcb_data d = new ycrcb_data();
+
+            byte[] cc = new byte[1];
+            int index = 0;
+            String[] tempText = new String[3];
+            for (int i = 0; i < 3; i++)
+            {
+                tempText[i] = "";
+
+            }
+            while( ( in.read(cc)) != -1){
+
+                if((char)cc[0] == '\n')
+                {
+                    index++;
+                    if (index == 3)
+                        break;
+                }
+                else
+                {
+                    tempText[index] += (char)cc[0];
+                }
+            }
+
+            line_t = tempText[0].split(" ");
+            Log.d("DEBUG", "ReadToFileByte: size of Y" + line_t[0] + " " + line_t[1] );
+            int Y_width = Integer.valueOf(line_t[0]);
+            int Y_height = Integer.valueOf(line_t[1]);
+
+            line_t = tempText[1].split(" ");
+            Log.d("DEBUG", "ReadToFileByte: size of Cr" + line_t[0] + " " + line_t[1] );
+            int Cr_width = Integer.valueOf(line_t[0]);
+            int Cr_height = Integer.valueOf(line_t[1]);
+
+            line_t = tempText[2].split(" ");
+            Log.d("DEBUG", "ReadToFileByte: size of Cb" + line_t[0] + " " + line_t[1] );
+            int Cb_width = Integer.valueOf(line_t[0]);
+            int Cb_height = Integer.valueOf(line_t[1]);
+
+            byte[] temp1 = new byte[Cb_height];
+            d = new ycrcb_data(Y_width, Y_height);
+            for(int i=0; i < d.Y.length; i++){
+                in.read(d.Y[i]);
+
+            }
+
+            for(int i=0; i < d.Cr.length; i=i+2){
+                in.read(temp1);
+                int ind=0;
+                for(int j=0; j< d.Cr[0].length;j=j+2){
+                    d.Cr[i][j] = temp1[ind];
+
+                    if(i+1 < d.Cr.length)
+                        d.Cr[i+1][j] = d.Cr[i][j];
+
+                    if(j+1 < d.Cr[0].length)
+                        d.Cr[i][j+1] = d.Cr[i][j];
+
+                    if(i+1 < d.Cr.length && j+1 < d.Cr[0].length)
+                        d.Cr[i+1][j+1] = d.Cr[i][j];
+                    ind++;
+                }
+            }
+
+            for(int i=0; i < d.Cb.length; i=i+2){
+                in.read(temp1);
+                int ind=0;
+                for(int j=0; j< d.Cb[0].length;j=j+2){
+                    d.Cb[i][j] = temp1[ind];
+
+                    if(i+1 < d.Cb.length)
+                        d.Cb[i+1][j] = d.Cb[i][j];
+
+                    if(j+1 < d.Cb[0].length)
+                        d.Cb[i][j+1] = d.Cb[i][j];
+
+                    if(i+1 < d.Cb.length && j+1 < d.Cb[0].length)
+                        d.Cb[i+1][j+1] = d.Cb[i][j];
+
+                    ind++;
+                }
+            }
+            return d;
+        }
+
+        catch(IOException e){
+            Log.e("Exception", "File write failed: " + e.toString());
+        }
+        return null;
+    }
+
 }
