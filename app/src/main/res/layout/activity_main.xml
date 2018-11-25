@@ -40,43 +40,26 @@
 
     </RelativeLayout>
 
+
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="100dp"
         android:layout_marginTop="250dp"
         android:background="@color/colorPrimaryDark">
 
-        <CheckBox
-            android:id="@+id/decompress"
-            android:layout_width="160dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_marginStart="200dp"
-            android:text="Decompression"
-            android:textColor="#fff" />
-
-        <CheckBox
-            android:id="@+id/compress"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_marginStart="66dp"
-            android:text="Compression"
-            android:textColor="#fff" />
-
         <Button
             android:layout_width="125dp"
             android:layout_height="45dp"
             android:layout_centerHorizontal="true"
             android:layout_marginTop="45dp"
-            android:onClick="decompress"
+            android:onClick="compressIman"
             android:text="COMPRESS" />
 
         <Button
             android:layout_width="125dp"
             android:layout_height="45dp"
-            android:layout_centerHorizontal="false"
-            android:layout_marginTop="45dp"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="11dp"
             android:onClick="decompressIman"
             android:text="DECOMPRESS" />
 

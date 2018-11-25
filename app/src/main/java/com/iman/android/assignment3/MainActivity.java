@@ -69,29 +69,29 @@ public class MainActivity extends AppCompatActivity {
                 inputBM = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
                 imgView.setImageBitmap(inputBM);
                 imageLoaded = true;
-                compressIman(inputBM, "file1.cmp");
+               // compressIman(inputBM, "file1.cmp");
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private void compressIman(Bitmap bm,String filename){
+    public void compressIman(View view){
 
-        int width = bm.getWidth();
-        int height = bm.getHeight();
-        int half_width = (int) Math.ceil(bm.getWidth()/2.0);
-        int half_height = (int) Math.ceil(bm.getHeight()/2.0);
+        int width = inputBM.getWidth();
+        int height = inputBM.getHeight();
+        int half_width = (int) Math.ceil(inputBM.getWidth()/2.0);
+        int half_height = (int) Math.ceil(inputBM.getHeight()/2.0);
 
         Log.d("debug", "compressIman: "+ width +" " + height + " " + half_width + " " + half_height);
         ycrcb_data fulldata = new ycrcb_data(width, height);
         ycrcb_data Halfdata = new ycrcb_data(width, height,
                                             half_width, half_height,
                                             half_width, half_height);
-        convertYcrcbFullSample(fulldata, bm);
-        convertYcrcbSubSample(fulldata,Halfdata,bm);
+        convertYcrcbFullSample(fulldata, inputBM);
+        convertYcrcbSubSample(fulldata,Halfdata,inputBM);
 
-        WriteToFileByte(Halfdata,filename,this); // .chs
+        WriteToFileByte(Halfdata,"file1.cmp",this); // .chs
 
 
     }
